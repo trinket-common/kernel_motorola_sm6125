@@ -231,6 +231,7 @@ struct msm_asoc_wcd93xx_codec {
 };
 
 static struct snd_soc_card snd_soc_card_sm6150_msm;
+static struct snd_soc_card snd_soc_card_sm6150_tacna;
 
 /* TDM default config */
 static struct dev_config tdm_rx_cfg[TDM_INTERFACE_MAX][TDM_PORT_MAX] = {
@@ -7990,6 +7991,16 @@ static struct snd_soc_dai_link msm_sm6150_dai_links[
 			 ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
 			 ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links)];
 
+static struct snd_soc_dai_link msm_sm6150_tacna_dai_links[
+			 ARRAY_SIZE(msm_common_dai_links) +
+			 ARRAY_SIZE(msm_common_misc_fe_dai_links) +
+			 ARRAY_SIZE(msm_int_compress_capture_dai) +
+			 ARRAY_SIZE(msm_common_be_dai_links) +
+			 ARRAY_SIZE(msm_wcn_be_dai_links) +
+			 ARRAY_SIZE(ext_disp_be_dai_link) +
+			 ARRAY_SIZE(msm_auxpcm_be_dai_links) +
+			 ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links)];
+
 static int msm_snd_card_tavil_late_probe(struct snd_soc_card *card)
 {
 	const char *be_dl_name = LPASS_BE_SLIMBUS_0_RX;
@@ -8270,6 +8281,8 @@ struct snd_soc_card snd_soc_card_stub_msm = {
 };
 
 static const struct of_device_id sm6150_asoc_machine_of_match[]  = {
+	{ .compatible = "qcom,sm6150-tacna-asoc-snd",
+	  .data = "tacna-codec"},
 	{ .compatible = "qcom,sm6150-asoc-snd",
 	  .data = "codec"},
 	{ .compatible = "qcom,sm6150-asoc-snd-stub",
@@ -8295,7 +8308,85 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		return NULL;
 	}
 
-	if (!strcmp(match->data, "codec")) {
+	if (!strcmp(match->data, "tacna-codec")) {
+		card = &snd_soc_card_sm6150_tacna;
+
+		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		       msm_common_dai_links,
+		       sizeof(msm_common_dai_links));
+		total_links += ARRAY_SIZE(msm_common_dai_links);
+
+		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		       msm_common_misc_fe_dai_links,
+		       sizeof(msm_common_misc_fe_dai_links));
+		total_links += ARRAY_SIZE(msm_common_misc_fe_dai_links);
+
+		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		       msm_int_compress_capture_dai,
+		       sizeof(msm_int_compress_capture_dai));
+		total_links += ARRAY_SIZE(msm_int_compress_capture_dai);
+
+		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		       msm_common_be_dai_links,
+		       sizeof(msm_common_be_dai_links));
+		total_links += ARRAY_SIZE(msm_common_be_dai_links);
+
+
+		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		       msm_rx_tx_cdc_dma_be_dai_links,
+		       sizeof(msm_rx_tx_cdc_dma_be_dai_links));
+		total_links +=
+			ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links);
+
+		rc = of_property_read_u32(dev->of_node,
+					  "qcom,ext-disp-audio-rx",
+					  &ext_disp_audio_intf);
+		if (rc) {
+			dev_dbg(dev, "%s: No DT match Ext Disp interface\n",
+				__func__);
+		} else {
+			if (ext_disp_audio_intf) {
+				memcpy(msm_sm6150_tacna_dai_links + total_links,
+					ext_disp_be_dai_link,
+					sizeof(ext_disp_be_dai_link));
+				total_links +=
+					ARRAY_SIZE(ext_disp_be_dai_link);
+			}
+		}
+
+		rc = of_property_read_u32(dev->of_node, "qcom,wcn-btfm",
+					  &wcn_btfm_intf);
+		if (rc) {
+			dev_dbg(dev, "%s: No DT match wcn btfm interface\n",
+				__func__);
+		} else {
+			if (wcn_btfm_intf) {
+				memcpy(msm_sm6150_tacna_dai_links + total_links,
+					msm_wcn_be_dai_links,
+					sizeof(msm_wcn_be_dai_links));
+				total_links +=
+					ARRAY_SIZE(msm_wcn_be_dai_links);
+			}
+		}
+
+		rc = of_property_read_u32(dev->of_node,
+					  "qcom,auxpcm-audio-intf",
+					  &auxpcm_audio_intf);
+		if (rc) {
+			dev_dbg(dev, "%s: No DT match Aux PCM interface\n",
+				__func__);
+		} else {
+			if (auxpcm_audio_intf) {
+				memcpy(msm_sm6150_tacna_dai_links + total_links,
+					msm_auxpcm_be_dai_links,
+					sizeof(msm_auxpcm_be_dai_links));
+				total_links +=
+					ARRAY_SIZE(msm_auxpcm_be_dai_links);
+			}
+		}
+
+		dailink = msm_sm6150_tacna_dai_links;
+	} else if (!strcmp(match->data, "codec")) {
 		card = &snd_soc_card_sm6150_msm;
 		memcpy(msm_sm6150_dai_links + total_links,
 		       msm_common_dai_links,
