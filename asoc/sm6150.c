@@ -10,7 +10,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -632,8 +631,10 @@ static SOC_ENUM_SINGLE_EXT_DECL(tx_cdc_dma_tx_4_sample_rate,
 
 static int msm_hifi_control;
 static bool codec_reg_done;
+#ifndef CONFIG_SND_SOC_TACNA
 static struct snd_soc_aux_dev *msm_aux_dev;
 static struct snd_soc_codec_conf *msm_codec_conf;
+#endif
 static struct msm_asoc_wcd93xx_codec msm_codec_fn;
 
 static int dmic_0_1_gpio_cnt;
@@ -642,9 +643,10 @@ static int dmic_2_3_gpio_cnt;
 static void *def_wcd_mbhc_cal(void);
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
+#ifndef CONFIG_SND_SOC_TACNA
 static int msm_wsa881x_init(struct snd_soc_component *component);
 static int msm_aux_codec_init(struct snd_soc_component *component);
-
+#endif
 /*
  * Need to report LINEIN
  * if R/L channel impedance is larger than 5K ohm
@@ -8560,6 +8562,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	return card;
 }
 
+#ifndef CONFIG_SND_SOC_TACNA
 static int msm_wsa881x_init(struct snd_soc_component *component)
 {
 	u8 spkleft_ports[WSA881X_MAX_SWR_PORTS] = {0, 1, 2, 3};
@@ -8965,6 +8968,7 @@ aux_dev_register:
 err:
 	return ret;
 }
+#endif
 
 static void msm_i2s_auxpcm_init(struct platform_device *pdev)
 {
@@ -9192,11 +9196,11 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
-
+#ifndef CONFIG_SND_SOC_TACNA
 	ret = msm_init_aux_dev(pdev, card);
 	if (ret)
 		goto err;
-
+#endif
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
 		if (codec_reg_done)
