@@ -44,6 +44,21 @@
 #include <dt-bindings/sound/audio-codec-port-types.h>
 #include "codecs/bolero/wsa-macro.h"
 #include "codecs/wcd937x/wcd937x.h"
+#include <tacna.h>
+
+#define QCOM_MCLK_RATE			32768
+#define FLL_RATE_CODEC			49152000
+#define CODEC_SYSCLK_RATE 		(FLL_RATE_CODEC * 2)
+#define CODEC_DSPCLK_RATE		(FLL_RATE_CODEC * 2)
+#define CODEC_FLLCLK_RATE		FLL_RATE_CODEC
+#define SCLK_RATE_1P536	1536000
+
+#define CODEC_NAME "cs48l32-codec"
+#define CODEC_DAI_NAME "cs48l32-asp1"
+#define CPU_DAI_NAME "cs48l32-asp2"
+#define RCV_AMP_NAME "cs35l41.1-0040"
+#define SPK_AMP_NAME "cs35l41.1-0041"
+#define AMP_DAI_NAME "cs35l41-pcm"
 
 #define DRV_NAME "sm6150-asoc-snd"
 
@@ -631,22 +646,24 @@ static SOC_ENUM_SINGLE_EXT_DECL(tx_cdc_dma_tx_4_sample_rate,
 
 static int msm_hifi_control;
 static bool codec_reg_done;
-#ifndef CONFIG_SND_SOC_TACNA
 static struct snd_soc_aux_dev *msm_aux_dev;
 static struct snd_soc_codec_conf *msm_codec_conf;
-#endif
 static struct msm_asoc_wcd93xx_codec msm_codec_fn;
 
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 
 static void *def_wcd_mbhc_cal(void);
+#ifdef CONFIG_SND_SOC_TACNA
+static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd);
+static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd);
+#else
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
-#ifndef CONFIG_SND_SOC_TACNA
+#endif
 static int msm_wsa881x_init(struct snd_soc_component *component);
 static int msm_aux_codec_init(struct snd_soc_component *component);
-#endif
+
 /*
  * Need to report LINEIN
  * if R/L channel impedance is larger than 5K ohm
@@ -3871,6 +3888,7 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
 };
 
+#ifndef CONFIG_SND_SOC_TACNA
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm)
 {
@@ -3887,6 +3905,7 @@ static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 	}
 	return ret;
 }
+#endif
 
 static int msm_snd_enable_codec_ext_tx_clk(struct snd_soc_codec *codec,
 					   int enable, bool dapm)
@@ -3926,14 +3945,39 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 				 struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
+#ifdef CONFIG_SND_SOC_TACNA
+	int ret;
+#endif
 
 	pr_debug("%s: event = %d\n", __func__, event);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+#ifdef CONFIG_SND_SOC_TACNA
+		ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
+			TACNA_FLL_SRC_ASP1_BCLK,
+			1536000, CODEC_FLLCLK_RATE);
+		if (ret != 0) {
+			dev_err(codec->dev, "Failed to set TACNA_FLL1_REFCLK %d\n", ret);
+			return ret;
+		}
+		break;
+#else
 		return msm_snd_enable_codec_ext_clk(codec, 1, true);
+#endif
 	case SND_SOC_DAPM_POST_PMD:
+#ifdef CONFIG_SND_SOC_TACNA
+		ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
+			TACNA_FLL_SRC_MCLK1,
+			QCOM_MCLK_RATE, CODEC_FLLCLK_RATE);
+		if (ret != 0) {
+			dev_err(codec->dev, "Failed to set MADERA_FLL1_REFCLK %d\n", ret);
+			return ret;
+		}
+		break;
+#else
 		return msm_snd_enable_codec_ext_clk(codec, 0, true);
+#endif
 	}
 	return 0;
 }
@@ -7976,6 +8020,100 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 	},
 };
 
+#ifdef CONFIG_SND_SOC_TACNA
+static struct snd_soc_dapm_route tacna_audio_paths[] = {
+	{"PRI_MI2S_RX", NULL, "MCLK"},
+	{"PRI_MI2S_TX", NULL, "MCLK"},
+};
+
+static const struct snd_soc_dapm_widget msm_tacna_dapm_widgets[] = {
+	SND_SOC_DAPM_SUPPLY_S("MCLK", -1,  SND_SOC_NOPM, 0, 0,
+		msm_mclk_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+};
+
+static const struct snd_soc_pcm_stream cirrus_amp_params[] = {
+	{
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
+		.rate_min = 48000,
+		.rate_max = 48000,
+		.channels_min = 2,
+		.channels_max = 2,  /* 2 channels for 1.536MHz SCLK */
+	},
+	{
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
+		.rate_min = 96000,
+		.rate_max = 96000,
+		.channels_min = 2,
+		.channels_max = 2, /* 2 channels for 3.072MHz SCLK */
+	},
+};
+
+static struct snd_soc_dai_link msm_tacna_be_dai_links[] = {
+	{
+		.name = LPASS_BE_PRI_MI2S_RX,
+		.stream_name = "Primary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.0",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = CODEC_NAME,
+		.codec_dai_name = CODEC_DAI_NAME,
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_PRI_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.init = &msm_tacna_init,
+	},
+	{
+		.name = LPASS_BE_PRI_MI2S_TX,
+		.stream_name = "Primary MI2S Capture",
+		.cpu_dai_name = "msm-dai-q6-mi2s.0",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = CODEC_NAME,
+		.codec_dai_name = CODEC_DAI_NAME,
+		.no_pcm = 1,
+		.dpcm_capture = 1,
+		.id = MSM_BACKEND_DAI_PRI_MI2S_TX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+	/* codec to amp link */
+	{
+		.name = "CODEC-AMP-RCV",
+		.stream_name = "CODEC-AMP-RCV Playback",
+		.cpu_name = CODEC_NAME,
+		.cpu_dai_name = CPU_DAI_NAME,
+		.codec_name = RCV_AMP_NAME,
+		.codec_dai_name = AMP_DAI_NAME,
+		.init = cirrus_amp_dai_init,
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBS_CFS,
+		.no_pcm = 1,
+		.ignore_pmdown_time = 1,
+		.ignore_suspend = 1,
+		.params = cirrus_amp_params,
+		.num_params = ARRAY_SIZE(cirrus_amp_params),
+	},
+	{
+		.name = "CODEC-AMP-SPK",
+		.stream_name = "CODEC-AMP-SPK Playback",
+		.cpu_name = CODEC_NAME,
+		.cpu_dai_name = CPU_DAI_NAME,
+		.codec_name = SPK_AMP_NAME,
+		.codec_dai_name = AMP_DAI_NAME,
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBS_CFS,
+		.no_pcm = 1,
+		.ignore_pmdown_time = 1,
+		.ignore_suspend = 1,
+		.params = cirrus_amp_params,
+		.num_params = ARRAY_SIZE(cirrus_amp_params),
+	},
+};
+#endif
+
 static struct snd_soc_dai_link msm_sm6150_dai_links[
 			 ARRAY_SIZE(msm_common_dai_links) +
 			 ARRAY_SIZE(msm_tavil_fe_dai_links) +
@@ -7998,6 +8136,7 @@ static struct snd_soc_dai_link msm_sm6150_tacna_dai_links[
 			 ARRAY_SIZE(msm_common_misc_fe_dai_links) +
 			 ARRAY_SIZE(msm_int_compress_capture_dai) +
 			 ARRAY_SIZE(msm_common_be_dai_links) +
+			 ARRAY_SIZE(msm_tacna_be_dai_links) +
 			 ARRAY_SIZE(msm_wcn_be_dai_links) +
 			 ARRAY_SIZE(ext_disp_be_dai_link) +
 			 ARRAY_SIZE(msm_auxpcm_be_dai_links) +
@@ -8333,6 +8472,10 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		       sizeof(msm_common_be_dai_links));
 		total_links += ARRAY_SIZE(msm_common_be_dai_links);
 
+		memcpy(msm_sm6150_tacna_dai_links + total_links,
+				msm_tacna_be_dai_links,
+				sizeof(msm_tacna_be_dai_links));
+		total_links += ARRAY_SIZE(msm_tacna_be_dai_links);
 
 		memcpy(msm_sm6150_tacna_dai_links + total_links,
 		       msm_rx_tx_cdc_dma_be_dai_links,
@@ -8562,7 +8705,120 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	return card;
 }
 
-#ifndef CONFIG_SND_SOC_TACNA
+#ifdef CONFIG_SND_SOC_TACNA
+static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
+{
+	int ret;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
+
+	ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
+			TACNA_FLL_SRC_NONE, 0, 0);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to set FLL1REFCLK %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
+			TACNA_FLL_SRC_MCLK1, QCOM_MCLK_RATE, CODEC_FLLCLK_RATE);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to set FLL1REFCLK %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_codec_set_sysclk(codec, TACNA_CLK_SYSCLK_1,
+			TACNA_CLK_SRC_FLL1, CODEC_SYSCLK_RATE,
+			SND_SOC_CLOCK_IN);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to set SYSCLK %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_add_codec_controls(codec, msm_int_snd_controls,
+					 ARRAY_SIZE(msm_int_snd_controls));
+	if (ret < 0) {
+		pr_err("%s: add_codec_controls failed, err %d\n",
+			__func__, ret);
+		return ret;
+	}
+
+	ret = snd_soc_add_codec_controls(codec, msm_common_snd_controls,
+					 ARRAY_SIZE(msm_common_snd_controls));
+	if (ret < 0) {
+		pr_err("%s: add_codec_controls failed, err %d\n",
+			__func__, ret);
+		return ret;
+	}
+
+	ret = snd_soc_dapm_new_controls(dapm, msm_tacna_dapm_widgets,
+			ARRAY_SIZE(msm_tacna_dapm_widgets));
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to add dapm widgets %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_dapm_add_routes(dapm, tacna_audio_paths,
+			ARRAY_SIZE(tacna_audio_paths));
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to add audio routes %d\n", ret);
+		return ret;
+	}
+
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1");
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS2");
+	snd_soc_dapm_ignore_suspend(dapm, "MICSUPP");
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1A");
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1B");
+	snd_soc_dapm_ignore_suspend(dapm, "HPHL");
+	snd_soc_dapm_ignore_suspend(dapm, "HPHR");
+	snd_soc_dapm_sync(dapm);
+
+	codec_reg_done = true;
+	return 0;
+}
+
+static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd)
+{
+	int ret;
+	int codec_clock = Q6AFE_LPASS_OSR_CLK_1_P536_MHZ;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
+	struct snd_soc_dai *codec_dai = rtd->cpu_dai;
+	struct snd_soc_dai *amp_dai = rtd->codec_dai;
+
+	ret = snd_soc_dai_set_sysclk(codec_dai, TACNA_CLK_SYSCLK_1, codec_clock, 0);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to set SYSCLK %d\n", ret);
+		return ret;
+	}
+	ret = snd_soc_dai_set_sysclk(amp_dai, 0, codec_clock, 0);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to set SCLK %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_codec_set_sysclk(codec, 0, 0, codec_clock, 0);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to set MCLK %d\n", ret);
+		return ret;
+	}
+
+	snd_soc_dapm_ignore_suspend(dapm, "SPK AMP Playback");
+	snd_soc_dapm_ignore_suspend(dapm, "SPK SPK");
+	snd_soc_dapm_ignore_suspend(dapm, "SPK VP");
+	snd_soc_dapm_ignore_suspend(dapm, "SPK VSENSE");
+	snd_soc_dapm_ignore_suspend(dapm, "SPK Main AMP");
+	snd_soc_dapm_ignore_suspend(dapm, "RCV AMP Playback");
+	snd_soc_dapm_ignore_suspend(dapm, "RCV SPK");
+	snd_soc_dapm_ignore_suspend(dapm, "RCV VP");
+	snd_soc_dapm_ignore_suspend(dapm, "RCV VSENSE");
+	snd_soc_dapm_ignore_suspend(dapm, "RCV Main AMP");
+
+	snd_soc_dapm_sync(dapm);
+	return 0;
+}
+#endif
+
 static int msm_wsa881x_init(struct snd_soc_component *component)
 {
 	u8 spkleft_ports[WSA881X_MAX_SWR_PORTS] = {0, 1, 2, 3};
@@ -8899,6 +9155,9 @@ codec_aux_dev:
 aux_dev_register:
 	card->num_aux_devs = wsa_max_devs + codec_max_aux_devs;
 	card->num_configs = wsa_max_devs + codec_max_aux_devs;
+#ifdef CONFIG_SND_SOC_TACNA
+	card->num_configs += 2;
+#endif
 
 	/* Alloc array of AUX devs struct */
 	msm_aux_dev = devm_kcalloc(&pdev->dev, card->num_aux_devs,
@@ -8956,6 +9215,7 @@ aux_dev_register:
 		msm_aux_dev[wsa_max_devs + i].codec_of_node =
 					aux_cdc_dev_info[i].of_node;
 		msm_aux_dev[wsa_max_devs + i].init =  msm_aux_codec_init;
+
 		msm_codec_conf[wsa_max_devs + i].dev_name = NULL;
 		msm_codec_conf[wsa_max_devs + i].name_prefix =
 						NULL;
@@ -8963,12 +9223,18 @@ aux_dev_register:
 				aux_cdc_dev_info[i].of_node;
 	}
 
+#ifdef CONFIG_SND_SOC_TACNA
+	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].dev_name = RCV_AMP_NAME;
+	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].name_prefix = "RCV";
+	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].dev_name = SPK_AMP_NAME;
+	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].name_prefix = "SPK";
+#endif
+
 	card->codec_conf = msm_codec_conf;
 	card->aux_dev = msm_aux_dev;
 err:
 	return ret;
 }
-#endif
 
 static void msm_i2s_auxpcm_init(struct platform_device *pdev)
 {
@@ -9196,11 +9462,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
-#ifndef CONFIG_SND_SOC_TACNA
 	ret = msm_init_aux_dev(pdev, card);
 	if (ret)
 		goto err;
-#endif
+
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
 		if (codec_reg_done)

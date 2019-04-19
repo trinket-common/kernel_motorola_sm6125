@@ -80,6 +80,10 @@ UAPI_INC :=	-I$(AUDIO_ROOT)/include/$(UAPI_DIR)
 COMMON_DIR :=	include
 COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 
+############ TACNA ############
+TACNA_INC := -I$(TOP)/motorola/kernel/modules/include \
+	-I$(TOP)/motorola/kernel/modules/sound/soc/codecs
+
 ############ ASoC Drivers ############
 
 
@@ -163,7 +167,8 @@ endif
 LINUX_INC +=	-Iinclude/linux
 
 INCS +=		$(COMMON_INC) \
-		$(UAPI_INC)
+		$(UAPI_INC) \
+		$(TACNA_INC)
 
 EXTRA_CFLAGS += $(INCS)
 
