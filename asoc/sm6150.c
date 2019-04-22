@@ -7923,6 +7923,7 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 		.codec_name = "bolero_codec",
 		.codec_dai_name = "rx_macro_rx1",
 		.no_pcm = 1,
+		.init = msm_int_audrx_init,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_RX_CDC_DMA_RX_0,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
@@ -8731,22 +8732,6 @@ static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 			SND_SOC_CLOCK_IN);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to set SYSCLK %d\n", ret);
-		return ret;
-	}
-
-	ret = snd_soc_add_codec_controls(codec, msm_int_snd_controls,
-					 ARRAY_SIZE(msm_int_snd_controls));
-	if (ret < 0) {
-		pr_err("%s: add_codec_controls failed, err %d\n",
-			__func__, ret);
-		return ret;
-	}
-
-	ret = snd_soc_add_codec_controls(codec, msm_common_snd_controls,
-					 ARRAY_SIZE(msm_common_snd_controls));
-	if (ret < 0) {
-		pr_err("%s: add_codec_controls failed, err %d\n",
-			__func__, ret);
 		return ret;
 	}
 
