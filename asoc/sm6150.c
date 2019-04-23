@@ -229,6 +229,8 @@ struct msm_asoc_mach_data {
 	int hph_en1_gpio;
 	int hph_en0_gpio;
 	struct device_node *mi2s_gpio_p[MI2S_MAX]; /* used by pinctrl API */
+	int cirrus_tacna_dev;
+	int cirrus_prince_devs;
 	struct device_node *dmic01_gpio_p; /* used by pinctrl API */
 	struct device_node *dmic23_gpio_p; /* used by pinctrl API */
 	struct device_node *us_euro_gpio_p; /* used by pinctrl API */
@@ -245,7 +247,7 @@ struct msm_asoc_wcd93xx_codec {
 };
 
 static struct snd_soc_card snd_soc_card_sm6150_msm;
-static struct snd_soc_card snd_soc_card_sm6150_tacna;
+static struct snd_soc_card snd_soc_card_sm6150_moto;
 
 /* TDM default config */
 static struct dev_config tdm_rx_cfg[TDM_INTERFACE_MAX][TDM_PORT_MAX] = {
@@ -654,13 +656,10 @@ static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 
 static void *def_wcd_mbhc_cal(void);
-#ifdef CONFIG_SND_SOC_TACNA
 static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd);
 static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd);
-#else
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
-#endif
 static int msm_wsa881x_init(struct snd_soc_component *component);
 static int msm_aux_codec_init(struct snd_soc_component *component);
 
@@ -3888,7 +3887,6 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
 };
 
-#ifndef CONFIG_SND_SOC_TACNA
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm)
 {
@@ -3905,7 +3903,6 @@ static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 	}
 	return ret;
 }
-#endif
 
 static int msm_snd_enable_codec_ext_tx_clk(struct snd_soc_codec *codec,
 					   int enable, bool dapm)
@@ -3945,39 +3942,38 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 				 struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
-#ifdef CONFIG_SND_SOC_TACNA
+	struct snd_soc_card *card = codec->component.card;
+	struct msm_asoc_mach_data *pdata =
+				snd_soc_card_get_drvdata(card);
 	int ret;
-#endif
 
 	pr_debug("%s: event = %d\n", __func__, event);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-#ifdef CONFIG_SND_SOC_TACNA
-		ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
-			TACNA_FLL_SRC_ASP1_BCLK,
-			1536000, CODEC_FLLCLK_RATE);
-		if (ret != 0) {
-			dev_err(codec->dev, "Failed to set TACNA_FLL1_REFCLK %d\n", ret);
-			return ret;
+		if (pdata && pdata->cirrus_tacna_dev) {
+			ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
+				TACNA_FLL_SRC_ASP1_BCLK,
+				1536000, CODEC_FLLCLK_RATE);
+			if (ret != 0) {
+				dev_err(codec->dev, "Failed to set TACNA_FLL1_REFCLK %d\n", ret);
+				return ret;
+			}
+			return 0;
 		}
-		break;
-#else
 		return msm_snd_enable_codec_ext_clk(codec, 1, true);
-#endif
 	case SND_SOC_DAPM_POST_PMD:
-#ifdef CONFIG_SND_SOC_TACNA
-		ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
-			TACNA_FLL_SRC_MCLK1,
-			QCOM_MCLK_RATE, CODEC_FLLCLK_RATE);
-		if (ret != 0) {
-			dev_err(codec->dev, "Failed to set MADERA_FLL1_REFCLK %d\n", ret);
-			return ret;
+		if (pdata && pdata->cirrus_tacna_dev) {
+			ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
+				TACNA_FLL_SRC_MCLK1,
+				QCOM_MCLK_RATE, CODEC_FLLCLK_RATE);
+			if (ret != 0) {
+				dev_err(codec->dev, "Failed to set MADERA_FLL1_REFCLK %d\n", ret);
+				return ret;
+			}
+			return 0;
 		}
-		break;
-#else
 		return msm_snd_enable_codec_ext_clk(codec, 0, true);
-#endif
 	}
 	return 0;
 }
@@ -8021,7 +8017,6 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 	},
 };
 
-#ifdef CONFIG_SND_SOC_TACNA
 static struct snd_soc_dapm_route tacna_audio_paths[] = {
 	{"PRI_MI2S_RX", NULL, "MCLK"},
 	{"PRI_MI2S_TX", NULL, "MCLK"},
@@ -8113,7 +8108,49 @@ static struct snd_soc_dai_link msm_tacna_be_dai_links[] = {
 		.num_params = ARRAY_SIZE(cirrus_amp_params),
 	},
 };
-#endif
+
+static struct snd_soc_dai_link_component cirrus_2prince[] = {
+	{
+		.name = "cs35l41.1-0040",
+		.dai_name = "cs35l41-pcm",
+	},
+	{
+		.name = "cs35l41.1-0041",
+		.dai_name = "cs35l41-pcm",
+	},
+};
+
+static struct snd_soc_dai_link msm_2prince_be_dai_links[] = {
+	{
+		.name = LPASS_BE_PRI_MI2S_RX,
+		.stream_name = "Primary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.0",
+		.platform_name = "msm-pcm-routing",
+		.codecs = cirrus_2prince,
+		.num_codecs = ARRAY_SIZE(cirrus_2prince),
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_PRI_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+	},
+	{
+		.name = LPASS_BE_PRI_MI2S_TX,
+		.stream_name = "Primary MI2S Capture",
+		.cpu_dai_name = "msm-dai-q6-mi2s.0",
+		.platform_name = "msm-pcm-routing",
+		.codecs = cirrus_2prince,
+		.num_codecs = ARRAY_SIZE(cirrus_2prince),
+		.no_pcm = 1,
+		.dpcm_capture = 1,
+		.id = MSM_BACKEND_DAI_PRI_MI2S_TX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+};
 
 static struct snd_soc_dai_link msm_sm6150_dai_links[
 			 ARRAY_SIZE(msm_common_dai_links) +
@@ -8132,12 +8169,13 @@ static struct snd_soc_dai_link msm_sm6150_dai_links[
 			 ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
 			 ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links)];
 
-static struct snd_soc_dai_link msm_sm6150_tacna_dai_links[
+static struct snd_soc_dai_link msm_sm6150_moto_dai_links[
 			 ARRAY_SIZE(msm_common_dai_links) +
 			 ARRAY_SIZE(msm_common_misc_fe_dai_links) +
 			 ARRAY_SIZE(msm_int_compress_capture_dai) +
 			 ARRAY_SIZE(msm_common_be_dai_links) +
 			 ARRAY_SIZE(msm_tacna_be_dai_links) +
+			 ARRAY_SIZE(msm_2prince_be_dai_links) +
 			 ARRAY_SIZE(msm_wcn_be_dai_links) +
 			 ARRAY_SIZE(ext_disp_be_dai_link) +
 			 ARRAY_SIZE(msm_auxpcm_be_dai_links) +
@@ -8423,8 +8461,8 @@ struct snd_soc_card snd_soc_card_stub_msm = {
 };
 
 static const struct of_device_id sm6150_asoc_machine_of_match[]  = {
-	{ .compatible = "qcom,sm6150-tacna-asoc-snd",
-	  .data = "tacna-codec"},
+	{ .compatible = "qcom,sm6150-moto-asoc-snd",
+	  .data = "moto-codec"},
 	{ .compatible = "qcom,sm6150-asoc-snd",
 	  .data = "codec"},
 	{ .compatible = "qcom,sm6150-asoc-snd-stub",
@@ -8432,7 +8470,8 @@ static const struct of_device_id sm6150_asoc_machine_of_match[]  = {
 	{},
 };
 
-static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
+static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
+	struct msm_asoc_mach_data *pdata)
 {
 	struct snd_soc_card *card = NULL;
 	struct snd_soc_dai_link *dailink;
@@ -8442,6 +8481,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	u32 wcn_btfm_intf = 0;
 	const struct of_device_id *match;
 	u32 tasha_codec = 0;
+	int ret = 0;
 
 	match = of_match_node(sm6150_asoc_machine_of_match, dev->of_node);
 	if (!match) {
@@ -8450,35 +8490,50 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		return NULL;
 	}
 
-	if (!strcmp(match->data, "tacna-codec")) {
-		card = &snd_soc_card_sm6150_tacna;
+	if (!strcmp(match->data, "moto-codec")) {
+		card = &snd_soc_card_sm6150_moto;
 
-		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		memcpy(msm_sm6150_moto_dai_links + total_links,
 		       msm_common_dai_links,
 		       sizeof(msm_common_dai_links));
 		total_links += ARRAY_SIZE(msm_common_dai_links);
 
-		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		memcpy(msm_sm6150_moto_dai_links + total_links,
 		       msm_common_misc_fe_dai_links,
 		       sizeof(msm_common_misc_fe_dai_links));
 		total_links += ARRAY_SIZE(msm_common_misc_fe_dai_links);
 
-		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		memcpy(msm_sm6150_moto_dai_links + total_links,
 		       msm_int_compress_capture_dai,
 		       sizeof(msm_int_compress_capture_dai));
 		total_links += ARRAY_SIZE(msm_int_compress_capture_dai);
 
-		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		memcpy(msm_sm6150_moto_dai_links + total_links,
 		       msm_common_be_dai_links,
 		       sizeof(msm_common_be_dai_links));
 		total_links += ARRAY_SIZE(msm_common_be_dai_links);
 
-		memcpy(msm_sm6150_tacna_dai_links + total_links,
-				msm_tacna_be_dai_links,
-				sizeof(msm_tacna_be_dai_links));
-		total_links += ARRAY_SIZE(msm_tacna_be_dai_links);
+		ret = of_property_read_u32(dev->of_node,
+                              "cirrus,tacna-dev", &pdata->cirrus_tacna_dev);
+		ret = of_property_read_u32(dev->of_node,
+				   "cirrus,prince-max-devs", &pdata->cirrus_prince_devs);
+		
+		dev_info(dev, "%s: cirrus,tacna-dev %d, cirrus,prince-max-devs %d\n",
+				__func__, pdata->cirrus_tacna_dev, pdata->cirrus_prince_devs);
 
-		memcpy(msm_sm6150_tacna_dai_links + total_links,
+		if (pdata->cirrus_tacna_dev > 0 && pdata->cirrus_prince_devs == 2) {
+			memcpy(msm_sm6150_moto_dai_links + total_links,
+					msm_tacna_be_dai_links,
+					sizeof(msm_tacna_be_dai_links));
+			total_links += ARRAY_SIZE(msm_tacna_be_dai_links);
+		} else if (pdata->cirrus_prince_devs == 2) {
+			memcpy(msm_sm6150_moto_dai_links + total_links,
+					msm_2prince_be_dai_links,
+					sizeof(msm_2prince_be_dai_links));
+			total_links += ARRAY_SIZE(msm_2prince_be_dai_links);
+		}
+
+		memcpy(msm_sm6150_moto_dai_links + total_links,
 		       msm_rx_tx_cdc_dma_be_dai_links,
 		       sizeof(msm_rx_tx_cdc_dma_be_dai_links));
 		total_links +=
@@ -8492,7 +8547,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				__func__);
 		} else {
 			if (ext_disp_audio_intf) {
-				memcpy(msm_sm6150_tacna_dai_links + total_links,
+				memcpy(msm_sm6150_moto_dai_links + total_links,
 					ext_disp_be_dai_link,
 					sizeof(ext_disp_be_dai_link));
 				total_links +=
@@ -8507,7 +8562,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				__func__);
 		} else {
 			if (wcn_btfm_intf) {
-				memcpy(msm_sm6150_tacna_dai_links + total_links,
+				memcpy(msm_sm6150_moto_dai_links + total_links,
 					msm_wcn_be_dai_links,
 					sizeof(msm_wcn_be_dai_links));
 				total_links +=
@@ -8523,7 +8578,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				__func__);
 		} else {
 			if (auxpcm_audio_intf) {
-				memcpy(msm_sm6150_tacna_dai_links + total_links,
+				memcpy(msm_sm6150_moto_dai_links + total_links,
 					msm_auxpcm_be_dai_links,
 					sizeof(msm_auxpcm_be_dai_links));
 				total_links +=
@@ -8531,7 +8586,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 			}
 		}
 
-		dailink = msm_sm6150_tacna_dai_links;
+		dailink = msm_sm6150_moto_dai_links;
 	} else if (!strcmp(match->data, "codec")) {
 		card = &snd_soc_card_sm6150_msm;
 		memcpy(msm_sm6150_dai_links + total_links,
@@ -8706,7 +8761,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	return card;
 }
 
-#ifdef CONFIG_SND_SOC_TACNA
 static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int ret;
@@ -8802,7 +8856,6 @@ static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_sync(dapm);
 	return 0;
 }
-#endif
 
 static int msm_wsa881x_init(struct snd_soc_component *component)
 {
@@ -8918,6 +8971,7 @@ codec_root_err:
 static int msm_init_aux_dev(struct platform_device *pdev,
 				struct snd_soc_card *card)
 {
+	struct msm_asoc_mach_data *pdata;
 	struct device_node *wsa_of_node;
 	struct device_node *aux_codec_of_node;
 	u32 wsa_max_devs;
@@ -8933,6 +8987,7 @@ static int msm_init_aux_dev(struct platform_device *pdev,
 	int codecs_found = 0;
 	int ret = 0;
 
+	pdata = snd_soc_card_get_drvdata(card);
 	/* Get maximum WSA device count for this platform */
 	ret = of_property_read_u32(pdev->dev.of_node,
 				   "qcom,wsa-max-devs", &wsa_max_devs);
@@ -9140,9 +9195,8 @@ codec_aux_dev:
 aux_dev_register:
 	card->num_aux_devs = wsa_max_devs + codec_max_aux_devs;
 	card->num_configs = wsa_max_devs + codec_max_aux_devs;
-#ifdef CONFIG_SND_SOC_TACNA
-	card->num_configs += 2;
-#endif
+	if (pdata && pdata->cirrus_prince_devs )
+	    card->num_configs += 2;
 
 	/* Alloc array of AUX devs struct */
 	msm_aux_dev = devm_kcalloc(&pdev->dev, card->num_aux_devs,
@@ -9208,12 +9262,12 @@ aux_dev_register:
 				aux_cdc_dev_info[i].of_node;
 	}
 
-#ifdef CONFIG_SND_SOC_TACNA
-	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].dev_name = RCV_AMP_NAME;
-	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].name_prefix = "RCV";
-	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].dev_name = SPK_AMP_NAME;
-	msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].name_prefix = "SPK";
-#endif
+	if (pdata && pdata->cirrus_prince_devs == 2) {
+	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].dev_name = RCV_AMP_NAME;
+	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].name_prefix = "RCV";
+	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].dev_name = SPK_AMP_NAME;
+	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].name_prefix = "SPK";
+	}
 
 	card->codec_conf = msm_codec_conf;
 	card->aux_dev = msm_aux_dev;
@@ -9418,7 +9472,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (!pdata)
 		return -ENOMEM;
 
-	card = populate_snd_card_dailinks(&pdev->dev);
+	card = populate_snd_card_dailinks(&pdev->dev, pdata);
 	if (!card) {
 		dev_err(&pdev->dev, "%s: Card uninitialized\n", __func__);
 		ret = -EINVAL;
