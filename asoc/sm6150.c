@@ -46,7 +46,6 @@
 #include "codecs/wcd937x/wcd937x.h"
 #include <tacna.h>
 
-#define QCOM_MCLK_RATE			32768
 #define FLL_RATE_CODEC			49152000
 #define CODEC_SYSCLK_RATE 		(FLL_RATE_CODEC * 2)
 #define CODEC_DSPCLK_RATE		(FLL_RATE_CODEC * 2)
@@ -229,6 +228,8 @@ struct msm_asoc_mach_data {
 	int hph_en1_gpio;
 	int hph_en0_gpio;
 	struct device_node *mi2s_gpio_p[MI2S_MAX]; /* used by pinctrl API */
+	bool pmic_audio_clk;
+	unsigned int cirrus_mclk_rate;
 	int cirrus_tacna_dev;
 	int cirrus_prince_devs;
 	struct device_node *dmic01_gpio_p; /* used by pinctrl API */
@@ -3966,7 +3967,7 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 		if (pdata && pdata->cirrus_tacna_dev) {
 			ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
 				TACNA_FLL_SRC_MCLK1,
-				QCOM_MCLK_RATE, CODEC_FLLCLK_RATE);
+				pdata->cirrus_mclk_rate, CODEC_FLLCLK_RATE);
 			if (ret != 0) {
 				dev_err(codec->dev, "Failed to set MADERA_FLL1_REFCLK %d\n", ret);
 				return ret;
@@ -8044,6 +8045,39 @@ static const struct snd_soc_pcm_stream cirrus_amp_params[] = {
 	},
 };
 
+static struct snd_soc_dai_link msm_tacna_fe_dai_links[] = {
+	{
+		.name = "CPU-DSP Voice Control",
+		.stream_name = "CPU-DSP Voice Control",
+		.cpu_dai_name = "cs48l32-cpu-voicectrl",
+		.platform_name = "cs48l32-codec",
+		.codec_dai_name = "cs48l32-dsp-voicectrl",
+		.codec_name = "cs48l32-codec",
+		.ignore_suspend = 1,
+		.dynamic = 0,
+	},
+	{
+		.name = "CPU-DSP Voice Control2",
+		.stream_name = "CPU-DSP Voice Control2",
+		.cpu_dai_name = "cs48l32-cpu-voicectrl2",
+		.platform_name = "cs48l32-codec",
+		.codec_dai_name = "cs48l32-dsp-voicectrl2",
+		.codec_name = "cs48l32-codec",
+		.ignore_suspend = 1,
+		.dynamic = 0,
+	},
+	{
+		.name = "CPU-DSP Trace",
+		.stream_name = "CPU-DSP Voice Trace",
+		.cpu_dai_name = "cs48l32-cpu-trace",
+		.platform_name = "cs48l32-codec",
+		.codec_dai_name = "cs48l32-dsp-trace",
+		.codec_name = "cs48l32-codec",
+		.ignore_suspend = 1,
+		.dynamic = 0,
+	},
+};
+
 static struct snd_soc_dai_link msm_tacna_be_dai_links[] = {
 	{
 		.name = LPASS_BE_PRI_MI2S_RX,
@@ -8172,6 +8206,7 @@ static struct snd_soc_dai_link msm_sm6150_dai_links[
 static struct snd_soc_dai_link msm_sm6150_moto_dai_links[
 			 ARRAY_SIZE(msm_common_dai_links) +
 			 ARRAY_SIZE(msm_common_misc_fe_dai_links) +
+			 ARRAY_SIZE(msm_tacna_fe_dai_links) +
 			 ARRAY_SIZE(msm_int_compress_capture_dai) +
 			 ARRAY_SIZE(msm_common_be_dai_links) +
 			 ARRAY_SIZE(msm_tacna_be_dai_links) +
@@ -8490,6 +8525,13 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
 		return NULL;
 	}
 
+	ret = of_property_read_u32(dev->of_node,
+                          "cirrus,tacna-dev", &pdata->cirrus_tacna_dev);
+	ret = of_property_read_u32(dev->of_node,
+			   "cirrus,prince-max-devs", &pdata->cirrus_prince_devs);
+	dev_info(dev, "%s: cirrus,tacna-dev %d, cirrus,prince-max-devs %d\n",
+			__func__, pdata->cirrus_tacna_dev, pdata->cirrus_prince_devs);
+
 	if (!strcmp(match->data, "moto-codec")) {
 		card = &snd_soc_card_sm6150_moto;
 
@@ -8503,6 +8545,13 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
 		       sizeof(msm_common_misc_fe_dai_links));
 		total_links += ARRAY_SIZE(msm_common_misc_fe_dai_links);
 
+		if (pdata->cirrus_tacna_dev > 0) {
+			memcpy(msm_sm6150_moto_dai_links + total_links,
+					msm_tacna_fe_dai_links,
+					sizeof(msm_tacna_fe_dai_links));
+			total_links += ARRAY_SIZE(msm_tacna_fe_dai_links);
+		}
+
 		memcpy(msm_sm6150_moto_dai_links + total_links,
 		       msm_int_compress_capture_dai,
 		       sizeof(msm_int_compress_capture_dai));
@@ -8512,14 +8561,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
 		       msm_common_be_dai_links,
 		       sizeof(msm_common_be_dai_links));
 		total_links += ARRAY_SIZE(msm_common_be_dai_links);
-
-		ret = of_property_read_u32(dev->of_node,
-                              "cirrus,tacna-dev", &pdata->cirrus_tacna_dev);
-		ret = of_property_read_u32(dev->of_node,
-				   "cirrus,prince-max-devs", &pdata->cirrus_prince_devs);
-		
-		dev_info(dev, "%s: cirrus,tacna-dev %d, cirrus,prince-max-devs %d\n",
-				__func__, pdata->cirrus_tacna_dev, pdata->cirrus_prince_devs);
 
 		if (pdata->cirrus_tacna_dev > 0 && pdata->cirrus_prince_devs == 2) {
 			memcpy(msm_sm6150_moto_dai_links + total_links,
@@ -8764,8 +8805,28 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
 static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int ret;
+	struct clk *ref_clk;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
+	struct msm_asoc_mach_data *pdata =
+				snd_soc_card_get_drvdata(rtd->card);
+
+	if (pdata->pmic_audio_clk) {
+		ref_clk = clk_get(codec->dev, "ref_clk");
+		if (IS_ERR_OR_NULL(ref_clk)) {
+			dev_err(codec->dev, "Failed to get ref_clk %ld\n",
+				PTR_ERR(ref_clk));
+			return -EINVAL;
+		}
+
+		ret = clk_set_rate(ref_clk, pdata->cirrus_mclk_rate);
+		if (ret) {
+			dev_err(codec->dev, "Failed to set ref_clk %d\n", ret);
+			return -EINVAL;
+		}
+		clk_prepare_enable(ref_clk);
+		dev_info(codec->dev, "ENABLE ref clk\n");
+	}
 
 	ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
 			TACNA_FLL_SRC_NONE, 0, 0);
@@ -8775,7 +8836,7 @@ static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 	}
 
 	ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
-			TACNA_FLL_SRC_MCLK1, QCOM_MCLK_RATE, CODEC_FLLCLK_RATE);
+			TACNA_FLL_SRC_MCLK1, pdata->cirrus_mclk_rate, CODEC_FLLCLK_RATE);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to set FLL1REFCLK %d\n", ret);
 		return ret;
@@ -9494,6 +9555,14 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "parse audio routing failed, err:%d\n",
 			ret);
 		goto err;
+	}
+
+	if (of_find_property(pdev->dev.of_node, "cirrus,pmic-audio-clk", NULL)) {
+		pdata->pmic_audio_clk = true;
+		pdata->cirrus_mclk_rate = 9600000;
+	} else {
+		pdata->pmic_audio_clk = false;
+		pdata->cirrus_mclk_rate = 32768;
 	}
 
 	ret = msm_populate_dai_link_component_of_node(card);
