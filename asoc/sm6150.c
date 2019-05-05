@@ -55,8 +55,8 @@
 #define CODEC_NAME "cs48l32-codec"
 #define CODEC_DAI_NAME "cs48l32-asp1"
 #define CPU_DAI_NAME "cs48l32-asp2"
-#define RCV_AMP_NAME "cs35l41.1-0040"
-#define SPK_AMP_NAME "cs35l41.1-0041"
+#define RCV_AMP_NAME "cs35l41-rcv"
+#define SPK_AMP_NAME "cs35l41-spk"
 #define AMP_DAI_NAME "cs35l41-pcm"
 
 #define DRV_NAME "sm6150-asoc-snd"
@@ -651,6 +651,7 @@ static int msm_hifi_control;
 static bool codec_reg_done;
 static struct snd_soc_aux_dev *msm_aux_dev;
 static struct snd_soc_codec_conf *msm_codec_conf;
+static struct snd_soc_codec_conf *msm_prince_codec_conf;
 static struct msm_asoc_wcd93xx_codec msm_codec_fn;
 
 static int dmic_0_1_gpio_cnt;
@@ -9256,8 +9257,6 @@ codec_aux_dev:
 aux_dev_register:
 	card->num_aux_devs = wsa_max_devs + codec_max_aux_devs;
 	card->num_configs = wsa_max_devs + codec_max_aux_devs;
-	if (pdata && pdata->cirrus_prince_devs )
-	    card->num_configs += 2;
 
 	/* Alloc array of AUX devs struct */
 	msm_aux_dev = devm_kcalloc(&pdev->dev, card->num_aux_devs,
@@ -9321,13 +9320,6 @@ aux_dev_register:
 						NULL;
 		msm_codec_conf[wsa_max_devs + i].of_node =
 				aux_cdc_dev_info[i].of_node;
-	}
-
-	if (pdata && pdata->cirrus_prince_devs == 2) {
-	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].dev_name = RCV_AMP_NAME;
-	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt].name_prefix = "RCV";
-	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].dev_name = SPK_AMP_NAME;
-	    msm_codec_conf[wsa_max_devs + codec_aux_dev_cnt + 1].name_prefix = "SPK";
 	}
 
 	card->codec_conf = msm_codec_conf;
@@ -9521,6 +9513,9 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	struct snd_soc_card *card;
 	struct msm_asoc_mach_data *pdata;
 	const char *mbhc_audio_jack_type = NULL;
+	struct device_node *prince_codec_of_node;
+	const char *prince_name_prefix[1];
+	int i;
 	int ret;
 
 	if (!pdev->dev.of_node) {
@@ -9573,6 +9568,47 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	ret = msm_init_aux_dev(pdev, card);
 	if (ret)
 		goto err;
+
+
+	if (pdata && pdata->cirrus_prince_devs > 0) {
+		/* Alloc array of codec conf struct */
+		msm_prince_codec_conf = devm_kcalloc(&pdev->dev,
+				card->num_configs + pdata->cirrus_prince_devs,
+				sizeof(struct snd_soc_codec_conf), GFP_KERNEL);
+		if (!msm_prince_codec_conf) {
+			ret = -ENOMEM;
+			goto err;
+		}
+		memcpy(msm_prince_codec_conf, msm_codec_conf,
+			card->num_configs * sizeof(struct snd_soc_codec_conf));
+
+		for (i = 0; i < pdata->cirrus_prince_devs; i++) {
+			prince_codec_of_node = of_parse_phandle(pdev->dev.of_node,
+						    "cirrus,prince-devs", i);
+			if (unlikely(!prince_codec_of_node)) {
+				/* we should not be here */
+				dev_err(&pdev->dev,
+					"%s: prince codec dev node is not present\n", __func__);
+				ret = -EINVAL;
+				goto err;
+			}
+			ret = of_property_read_string_index(pdev->dev.of_node,
+							    "cirrus,prince-dev-prefix", i, prince_name_prefix);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"%s: failed to read prince dev prefix, ret = %d\n", __func__, ret);
+				ret = -EINVAL;
+				goto err;
+			}
+
+			msm_prince_codec_conf[card->num_configs + i].dev_name = NULL;
+			msm_prince_codec_conf[card->num_configs + i].of_node = prince_codec_of_node;
+			msm_prince_codec_conf[card->num_configs + i].name_prefix = prince_name_prefix[0];
+		}
+
+		card->num_configs += pdata->cirrus_prince_devs;
+		card->codec_conf = msm_prince_codec_conf;
+	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
