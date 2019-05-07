@@ -32,6 +32,7 @@
 #include <soc/qcom/socinfo.h>
 #include <dsp/q6afe-v2.h>
 #include <dsp/q6core.h>
+#include <sound/soc/codecs/tacna.h>
 #include "device_event.h"
 #include "msm-pcm-routing-v2.h"
 #include "codecs/msm-cdc-pinctrl.h"
@@ -44,7 +45,6 @@
 #include <dt-bindings/sound/audio-codec-port-types.h>
 #include "codecs/bolero/wsa-macro.h"
 #include "codecs/wcd937x/wcd937x.h"
-#include <tacna.h>
 
 #define FLL_RATE_CODEC			49152000
 #define CODEC_SYSCLK_RATE 		(FLL_RATE_CODEC * 2)
@@ -5147,10 +5147,13 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "Analog Mic3");
 	snd_soc_dapm_ignore_suspend(dapm, "Analog Mic4");
 
-	snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK1 OUT");
-	snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK2 OUT");
-	snd_soc_dapm_ignore_suspend(dapm, "WSA AIF VI");
-	snd_soc_dapm_ignore_suspend(dapm, "VIINPUT_WSA");
+	/* avoid unknown pin warning if the wsa-macro have not been registered */
+	if (!strcmp(rtd->dai_link->name, LPASS_BE_WSA_CDC_DMA_RX_0)) {
+		snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK1 OUT");
+		snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK2 OUT");
+		snd_soc_dapm_ignore_suspend(dapm, "WSA AIF VI");
+		snd_soc_dapm_ignore_suspend(dapm, "VIINPUT_WSA");
+	}
 
 	snd_soc_dapm_sync(dapm);
 
@@ -8134,6 +8137,7 @@ static struct snd_soc_dai_link msm_tacna_be_dai_links[] = {
 		.cpu_dai_name = CPU_DAI_NAME,
 		.codec_name = SPK_AMP_NAME,
 		.codec_dai_name = AMP_DAI_NAME,
+		.init = cirrus_amp_dai_init,
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
 		.no_pcm = 1,
@@ -8865,16 +8869,12 @@ static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	}
 
-	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1");
-	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS2");
-	snd_soc_dapm_ignore_suspend(dapm, "MICSUPP");
-	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1A");
-	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1B");
-	snd_soc_dapm_ignore_suspend(dapm, "HPHL");
-	snd_soc_dapm_ignore_suspend(dapm, "HPHR");
+	snd_soc_dapm_ignore_suspend(dapm, "IN1LP_1");
+	snd_soc_dapm_ignore_suspend(dapm, "IN1LN_1");
+	snd_soc_dapm_ignore_suspend(dapm, "IN1RP_1");
+	snd_soc_dapm_ignore_suspend(dapm, "IN1RN_1");
 	snd_soc_dapm_sync(dapm);
 
-	codec_reg_done = true;
 	return 0;
 }
 
@@ -8886,6 +8886,7 @@ static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct snd_soc_dai *codec_dai = rtd->cpu_dai;
 	struct snd_soc_dai *amp_dai = rtd->codec_dai;
+	const char *name_prefix = rtd->codec->component.name_prefix;
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, TACNA_CLK_SYSCLK_1, codec_clock, 0);
 	if (ret != 0) {
@@ -8904,17 +8905,17 @@ static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	}
 
-	snd_soc_dapm_ignore_suspend(dapm, "SPK AMP Playback");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK SPK");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK VP");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK VSENSE");
-	snd_soc_dapm_ignore_suspend(dapm, "SPK Main AMP");
-	snd_soc_dapm_ignore_suspend(dapm, "RCV AMP Playback");
-	snd_soc_dapm_ignore_suspend(dapm, "RCV SPK");
-	snd_soc_dapm_ignore_suspend(dapm, "RCV VP");
-	snd_soc_dapm_ignore_suspend(dapm, "RCV VSENSE");
-	snd_soc_dapm_ignore_suspend(dapm, "RCV Main AMP");
-
+	if (!strcmp("RCV", name_prefix)) {
+		snd_soc_dapm_ignore_suspend(dapm, "RCV SPK");
+		snd_soc_dapm_ignore_suspend(dapm, "RCV AMP Playback");
+		snd_soc_dapm_ignore_suspend(dapm, "RCV VMON ADC");
+		snd_soc_dapm_ignore_suspend(dapm, "RCV AMP Capture");
+	} else if(!strcmp("SPK", name_prefix)) {
+		snd_soc_dapm_ignore_suspend(dapm, "SPK SPK");
+		snd_soc_dapm_ignore_suspend(dapm, "SPK AMP Playback");
+		snd_soc_dapm_ignore_suspend(dapm, "SPK VMON ADC");
+		snd_soc_dapm_ignore_suspend(dapm, "SPK AMP Capture");
+	}
 	snd_soc_dapm_sync(dapm);
 	return 0;
 }

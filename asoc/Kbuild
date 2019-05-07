@@ -82,7 +82,7 @@ COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 
 ############ TACNA ############
 TACNA_INC := -I$(TOP)/motorola/kernel/modules/include \
-	-I$(TOP)/motorola/kernel/modules/sound/soc/codecs
+	-I$(TOP)/motorola/kernel/modules/
 
 ############ ASoC Drivers ############
 
