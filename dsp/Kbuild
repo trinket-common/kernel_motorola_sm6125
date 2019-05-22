@@ -83,6 +83,10 @@ COMMON_DIR :=	include
 COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 MOTO_KERN_INC := -I$(ANDROID_BUILD_TOP)/motorola/kernel/modules/include
 
+ifneq ($(filter m y,$(CONFIG_CIRRUS_PLAYBACK)),)
+	EXTRA_CFLAGS += -DCONFIG_CIRRUS_PLAYBACK
+endif
+
 ############ QDSP6V2 ############
 
 ifdef CONFIG_SND_SOC_MSM_QDSP6V2_INTF
