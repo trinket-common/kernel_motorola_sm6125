@@ -8868,9 +8868,23 @@ static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 		dev_err(codec->dev, "Failed to add audio routes %d\n", ret);
 		return ret;
 	}
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1");
+	snd_soc_dapm_ignore_suspend(dapm, "MICSUPP");
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1A");
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1B");
+	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1C");
+
+	snd_soc_dapm_ignore_suspend(dapm, "ASP1 Playback");
+	snd_soc_dapm_ignore_suspend(dapm, "ASP1 Capture");
+	snd_soc_dapm_ignore_suspend(dapm, "ASP2 Playback");
+	snd_soc_dapm_ignore_suspend(dapm, "ASP2 Capture");
+
+	snd_soc_dapm_ignore_suspend(dapm, "DSP1 Trigger Output");
 
 	snd_soc_dapm_ignore_suspend(dapm, "IN1LP_1");
 	snd_soc_dapm_ignore_suspend(dapm, "IN1LN_1");
+	snd_soc_dapm_ignore_suspend(dapm, "IN1LP_2");
+	snd_soc_dapm_ignore_suspend(dapm, "IN1LN_2");
 	snd_soc_dapm_ignore_suspend(dapm, "IN1RP_1");
 	snd_soc_dapm_ignore_suspend(dapm, "IN1RN_1");
 	snd_soc_dapm_sync(dapm);
