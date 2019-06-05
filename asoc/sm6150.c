@@ -8879,7 +8879,7 @@ static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "ASP2 Playback");
 	snd_soc_dapm_ignore_suspend(dapm, "ASP2 Capture");
 
-	snd_soc_dapm_ignore_suspend(dapm, "DSP1 Trigger Output");
+	snd_soc_dapm_ignore_suspend(dapm, "DSP Trigger Out");
 
 	snd_soc_dapm_ignore_suspend(dapm, "IN1LP_1");
 	snd_soc_dapm_ignore_suspend(dapm, "IN1LN_1");
