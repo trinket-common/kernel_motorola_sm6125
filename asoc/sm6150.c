@@ -660,6 +660,7 @@ static int dmic_2_3_gpio_cnt;
 static void *def_wcd_mbhc_cal(void);
 static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd);
 static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd);
+static int cirrus_amp_2prince_only_dai_init(struct snd_soc_pcm_runtime *rtd);
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
 static int msm_wsa881x_init(struct snd_soc_component *component);
@@ -8150,11 +8151,11 @@ static struct snd_soc_dai_link msm_tacna_be_dai_links[] = {
 
 static struct snd_soc_dai_link_component cirrus_2prince[] = {
 	{
-		.name = "cs35l41.1-0040",
+		.name = "cs35l41.0-0040",
 		.dai_name = "cs35l41-pcm",
 	},
 	{
-		.name = "cs35l41.1-0041",
+		.name = "cs35l41.0-0041",
 		.dai_name = "cs35l41-pcm",
 	},
 };
@@ -8172,6 +8173,7 @@ static struct snd_soc_dai_link msm_2prince_be_dai_links[] = {
 		.id = MSM_BACKEND_DAI_PRI_MI2S_RX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &msm_mi2s_be_ops,
+		.init = cirrus_amp_2prince_only_dai_init,
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
 	},
@@ -8931,6 +8933,44 @@ static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd)
 		snd_soc_dapm_ignore_suspend(dapm, "SPK AMP Capture");
 	}
 	snd_soc_dapm_sync(dapm);
+	return 0;
+}
+
+static int cirrus_amp_2prince_only_dai_init(struct snd_soc_pcm_runtime *rtd)
+{
+	int ret,i;
+	int codec_clock = Q6AFE_LPASS_OSR_CLK_1_P536_MHZ;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_codec *spk_cdc = rtd->codec_dais[0]->codec;
+	struct snd_soc_dapm_context *spk_dapm = snd_soc_codec_get_dapm(spk_cdc);
+	struct snd_soc_codec *rcv_cdc = rtd->codec_dais[1]->codec;
+	struct snd_soc_dapm_context *rcv_dapm = snd_soc_codec_get_dapm(rcv_cdc);
+	struct snd_soc_dai **amp_dai = rtd->codec_dais;
+
+	for (i = 0; i < rtd->num_codecs; i++) {
+		ret = snd_soc_dai_set_sysclk(amp_dai[i], 0, codec_clock, 0);
+		if (ret != 0) {
+			dev_err(codec->dev, "Failed to set SCLK %d\n", ret);
+			return ret;
+		}
+
+		ret = snd_soc_codec_set_sysclk(amp_dai[i]->codec, 0, 0, codec_clock, 0);
+		if (ret != 0) {
+			dev_err(codec->dev, "Failed to set MCLK %d\n", ret);
+			return ret;
+		}
+	}
+
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV SPK");
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Playback");
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV VMON ADC");
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Capture");
+	snd_soc_dapm_sync(rcv_dapm);
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK SPK");
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Playback");
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK VMON ADC");
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Capture");
+	snd_soc_dapm_sync(spk_dapm);
 	return 0;
 }
 
