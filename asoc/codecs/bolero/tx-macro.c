@@ -149,6 +149,7 @@ struct tx_macro_priv {
 	struct work_struct tx_macro_add_child_devices_work;
 	struct hpf_work tx_hpf_work[NUM_DECIMATORS];
 	struct tx_mute_work tx_mute_dwork[NUM_DECIMATORS];
+	u32 mute_delay_ms;
 	s32 dmic_0_1_clk_cnt;
 	s32 dmic_2_3_clk_cnt;
 	s32 dmic_4_5_clk_cnt;
@@ -752,7 +753,7 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 							CF_MIN_3DB_150HZ) {
 			schedule_delayed_work(
 					&tx_priv->tx_hpf_work[decimator].dwork,
-					msecs_to_jiffies(300));
+					tx_priv->mute_delay_ms);
 			snd_soc_update_bits(codec, hpf_gate_reg, 0x02, 0x02);
 			/*
 			 * Minimum 1 clk cycle delay is required as per HW spec
@@ -1853,6 +1854,14 @@ static int tx_macro_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	tx_priv->tx_io_base = tx_io_base;
+	ret = of_property_read_u32(pdev->dev.of_node, "qcom,mute-delay-ms",
+				   &tx_priv->mute_delay_ms);
+	if (ret) {
+		dev_warn(&pdev->dev,
+			"%s: could not find qcom,mute_delay_ms entry in dt\n",
+			__func__);
+		tx_priv->mute_delay_ms = 300;
+	}
 	ret = of_property_read_u32(pdev->dev.of_node, dmic_sample_rate,
 				   &sample_rate);
 	if (ret) {
