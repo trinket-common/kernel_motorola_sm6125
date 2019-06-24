@@ -4015,6 +4015,29 @@ static int msm_hifi_ctrl_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+static const struct snd_kcontrol_new bias_enable_ctrl[] = {
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0),
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0),
+};
+
+static struct snd_soc_dapm_route tacna_stub_audio_paths[] = {
+	{"STUB MIC IN1", NULL, "MICBIAS1A"},
+	{"Tacana BIAS1A Enable", "Switch", "STUB MIC IN1"},
+	{"STUB MIC OUT1", NULL, "Tacana BIAS1A Enable"},
+	{"STUB MIC IN2", NULL, "MICBIAS1B"},
+	{"Tacana BIAS1B Enable", "Switch", "STUB MIC IN2"},
+	{"STUB MIC OUT2", NULL, "Tacana BIAS1B Enable"},
+};
+
+static const struct snd_soc_dapm_widget tacna_stub_dapm_widgets[] = {
+	SND_SOC_DAPM_INPUT("STUB MIC IN1"),
+	SND_SOC_DAPM_INPUT("STUB MIC IN2"),
+	SND_SOC_DAPM_OUTPUT("STUB MIC OUT1"),
+	SND_SOC_DAPM_OUTPUT("STUB MIC OUT2"),
+	SND_SOC_DAPM_SWITCH("Tacana BIAS1A Enable", SND_SOC_NOPM, 0, 1, &bias_enable_ctrl[0]),
+	SND_SOC_DAPM_SWITCH("Tacana BIAS1B Enable", SND_SOC_NOPM, 0, 1, &bias_enable_ctrl[1]),
+};
+
 static const struct snd_soc_dapm_widget msm_ext_dapm_widgets[] = {
 
 	SND_SOC_DAPM_SUPPLY("MCLK",  SND_SOC_NOPM, 0, 0,
@@ -8870,6 +8893,25 @@ static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd)
 		dev_err(codec->dev, "Failed to add audio routes %d\n", ret);
 		return ret;
 	}
+
+	ret = snd_soc_dapm_new_controls(dapm, tacna_stub_dapm_widgets,
+			ARRAY_SIZE(tacna_stub_dapm_widgets));
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to add cooke stub dapm widgets %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_dapm_add_routes(dapm, tacna_stub_audio_paths,
+			ARRAY_SIZE(tacna_stub_audio_paths));
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to add cooke stub audio routes %d\n", ret);
+		return ret;
+	}
+	snd_soc_dapm_ignore_suspend(dapm, "STUB MIC IN1");
+	snd_soc_dapm_ignore_suspend(dapm, "STUB MIC IN2");
+	snd_soc_dapm_ignore_suspend(dapm, "STUB MIC OUT1");
+	snd_soc_dapm_ignore_suspend(dapm, "STUB MIC OUT2");
+
 	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1");
 	snd_soc_dapm_ignore_suspend(dapm, "MICSUPP");
 	snd_soc_dapm_ignore_suspend(dapm, "MICBIAS1A");
