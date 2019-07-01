@@ -8297,6 +8297,16 @@ static struct snd_soc_dai_link msm_tacna_fe_dai_links[] = {
 		.ignore_suspend = 1,
 		.dynamic = 0,
 	},
+	{
+		.name = "CPU-DSP Text",
+		.stream_name = "CPU-DSP Text",
+		.cpu_dai_name = "cs48l32-cpu-textlog",
+		.platform_name = "cs48l32-codec",
+		.codec_dai_name = "cs48l32-dsp-textlog",
+		.codec_name = "cs48l32-codec",
+		.ignore_suspend = 1,
+		.dynamic = 0,
+	},
 };
 
 static struct snd_soc_dai_link msm_tacna_be_dai_links[] = {
