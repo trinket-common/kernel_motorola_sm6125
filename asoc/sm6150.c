@@ -3957,7 +3957,8 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 		if (pdata && pdata->cirrus_tacna_dev) {
 			ret = snd_soc_codec_set_pll(codec, TACNA_FLL1_REFCLK,
 				TACNA_FLL_SRC_ASP1_BCLK,
-				1536000, CODEC_FLLCLK_RATE);
+				mi2s_clk[PRIM_MI2S].clk_freq_in_hz,
+				CODEC_FLLCLK_RATE);
 			if (ret != 0) {
 				dev_err(codec->dev, "Failed to set TACNA_FLL1_REFCLK %d\n", ret);
 				return ret;
