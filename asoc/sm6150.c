@@ -660,7 +660,6 @@ static int dmic_2_3_gpio_cnt;
 static void *def_wcd_mbhc_cal(void);
 static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd);
 static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd);
-static int cirrus_amp_2prince_only_dai_init(struct snd_soc_pcm_runtime *rtd);
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
 static int msm_wsa881x_init(struct snd_soc_component *component);
@@ -6063,6 +6062,103 @@ static struct snd_soc_ops msm_ext_cpe_ops = {
 	.hw_params = msm_snd_cpe_hw_params,
 };
 
+static atomic_t cs35l41_mclk_rsc_ref;
+static int cs35l41_snd_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai **codec_dais = rtd->codec_dais;
+	int ret, i;
+
+	dev_info(card->dev, "+%s, mclk refcount = %d\n", __func__,
+		atomic_read(&cs35l41_mclk_rsc_ref));
+
+	if (atomic_inc_return(&cs35l41_mclk_rsc_ref) == 1) {
+		ret = msm_mi2s_snd_startup(substream);
+		if (ret) {
+			dev_err(card->dev, "%s: Failed to startup mi2s: %d\n",
+					__func__, ret);
+			return ret;
+		}
+
+		for (i = 0; i < rtd->num_codecs; i++) {
+			// Set codec_dai as slave
+			ret = snd_soc_dai_set_fmt(codec_dais[i],
+							SND_SOC_DAIFMT_CBS_CFS | SND_SOC_DAIFMT_I2S);
+			if (ret < 0) {
+				dev_err(card->dev, "%s: Failed to set fmt codec dai: %d\n",
+					__func__, ret);
+				return ret;
+			}
+
+			ret = snd_soc_codec_set_sysclk(codec_dais[i]->codec, 0, 0,
+							Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+							SND_SOC_CLOCK_IN);
+			if (ret < 0) {
+				dev_err(card->dev, "%s: Failed to set codec sysclk: %d\n",
+						__func__, ret);
+				return ret;
+			}
+
+			ret = snd_soc_dai_set_sysclk(codec_dais[i], 0,
+							Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+							SND_SOC_CLOCK_IN);
+			if (ret < 0) {
+				dev_err(card->dev, "%s: Failed to set dai sysclk: %d\n",
+						__func__, ret);
+				return ret;
+			}
+		}
+	}
+
+	dev_info(card->dev, "-%s\n", __func__);
+	return 0;
+}
+
+void cs35l41_snd_shutdown(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+
+	dev_info(card->dev, "+%s, mclk refcount = %d \n", __func__,
+		atomic_read(&cs35l41_mclk_rsc_ref));
+
+	if (atomic_dec_return(&cs35l41_mclk_rsc_ref) == 0) {
+		msm_mi2s_snd_shutdown(substream);
+	}
+
+	dev_info(card->dev, "-%s\n", __func__);
+}
+
+static struct snd_soc_ops cs35l41_be_ops = {
+	.startup = cs35l41_snd_startup,
+	.shutdown = cs35l41_snd_shutdown,
+};
+
+static int cs35l41_mi2s_snd_init(struct snd_soc_pcm_runtime *rtd)
+{
+		struct snd_soc_card *card = rtd->card;
+		struct snd_soc_codec *spk_cdc = rtd->codec_dais[0]->codec;
+		struct snd_soc_dapm_context *spk_dapm = snd_soc_codec_get_dapm(spk_cdc);
+		struct snd_soc_codec *rcv_cdc = rtd->codec_dais[1]->codec;
+		struct snd_soc_dapm_context *rcv_dapm = snd_soc_codec_get_dapm(rcv_cdc);
+
+		dev_info(card->dev, "%s: set cs35l41_mclk_rsc_ref to 0 \n", __func__);
+		atomic_set(&cs35l41_mclk_rsc_ref, 0);
+
+		dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(spk_cdc->dev));
+		snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Playback");
+		snd_soc_dapm_ignore_suspend(spk_dapm, "SPK SPK");
+		snd_soc_dapm_sync(spk_dapm);
+
+		dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(rcv_cdc->dev));
+		snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Playback");
+		snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV SPK");
+		snd_soc_dapm_sync(rcv_dapm);
+
+		return 0;
+}
+
 /* Digital audio interface glue - connects codec <---> CPU */
 static struct snd_soc_dai_link msm_common_dai_links[] = {
 	/* FrontEnd DAI Links */
@@ -8195,8 +8291,8 @@ static struct snd_soc_dai_link msm_2prince_be_dai_links[] = {
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_PRI_MI2S_RX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
-		.ops = &msm_mi2s_be_ops,
-		.init = cirrus_amp_2prince_only_dai_init,
+		.ops = &cs35l41_be_ops,
+		.init = cs35l41_mi2s_snd_init,
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
 	},
@@ -8211,7 +8307,7 @@ static struct snd_soc_dai_link msm_2prince_be_dai_links[] = {
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_PRI_MI2S_TX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
-		.ops = &msm_mi2s_be_ops,
+		.ops = &cs35l41_be_ops,
 		.ignore_suspend = 1,
 	},
 };
@@ -8975,44 +9071,6 @@ static int cirrus_amp_dai_init(struct snd_soc_pcm_runtime *rtd)
 		snd_soc_dapm_ignore_suspend(dapm, "SPK AMP Capture");
 	}
 	snd_soc_dapm_sync(dapm);
-	return 0;
-}
-
-static int cirrus_amp_2prince_only_dai_init(struct snd_soc_pcm_runtime *rtd)
-{
-	int ret,i;
-	int codec_clock = Q6AFE_LPASS_OSR_CLK_1_P536_MHZ;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_codec *spk_cdc = rtd->codec_dais[0]->codec;
-	struct snd_soc_dapm_context *spk_dapm = snd_soc_codec_get_dapm(spk_cdc);
-	struct snd_soc_codec *rcv_cdc = rtd->codec_dais[1]->codec;
-	struct snd_soc_dapm_context *rcv_dapm = snd_soc_codec_get_dapm(rcv_cdc);
-	struct snd_soc_dai **amp_dai = rtd->codec_dais;
-
-	for (i = 0; i < rtd->num_codecs; i++) {
-		ret = snd_soc_dai_set_sysclk(amp_dai[i], 0, codec_clock, 0);
-		if (ret != 0) {
-			dev_err(codec->dev, "Failed to set SCLK %d\n", ret);
-			return ret;
-		}
-
-		ret = snd_soc_codec_set_sysclk(amp_dai[i]->codec, 0, 0, codec_clock, 0);
-		if (ret != 0) {
-			dev_err(codec->dev, "Failed to set MCLK %d\n", ret);
-			return ret;
-		}
-	}
-
-	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV SPK");
-	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Playback");
-	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV VMON ADC");
-	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Capture");
-	snd_soc_dapm_sync(rcv_dapm);
-	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK SPK");
-	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Playback");
-	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK VMON ADC");
-	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Capture");
-	snd_soc_dapm_sync(spk_dapm);
 	return 0;
 }
 
