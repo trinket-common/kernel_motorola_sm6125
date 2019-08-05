@@ -232,6 +232,7 @@ struct msm_asoc_mach_data {
 	unsigned int cirrus_mclk_rate;
 	int cirrus_tacna_dev;
 	int cirrus_prince_devs;
+	int ti_2558_devs;
 	struct device_node *dmic01_gpio_p; /* used by pinctrl API */
 	struct device_node *dmic23_gpio_p; /* used by pinctrl API */
 	struct device_node *us_euro_gpio_p; /* used by pinctrl API */
@@ -8312,6 +8313,38 @@ static struct snd_soc_dai_link msm_2prince_be_dai_links[] = {
 	},
 };
 
+static struct snd_soc_dai_link msm_2ti2558_be_dai_links[] = {
+	{
+		.name = LPASS_BE_PRI_MI2S_RX,
+		.stream_name = "Primary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.0",
+		.platform_name = "msm-pcm-routing",
+		.codec_name     = "tas2562.0-004c",
+		.codec_dai_name = "tas2562 ASI1",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_PRI_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+	},
+	{
+		.name = LPASS_BE_PRI_MI2S_TX,
+		.stream_name = "Primary MI2S Capture",
+		.cpu_dai_name = "msm-dai-q6-mi2s.0",
+		.platform_name = "msm-pcm-routing",
+		.codec_name     = "tas2562.0-004c",
+		.codec_dai_name = "tas2562 ASI1",
+		.no_pcm = 1,
+		.dpcm_capture = 1,
+		.id = MSM_BACKEND_DAI_PRI_MI2S_TX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+};
+
 static struct snd_soc_dai_link msm_sm6150_dai_links[
 			 ARRAY_SIZE(msm_common_dai_links) +
 			 ARRAY_SIZE(msm_tavil_fe_dai_links) +
@@ -8337,6 +8370,7 @@ static struct snd_soc_dai_link msm_sm6150_moto_dai_links[
 			 ARRAY_SIZE(msm_common_be_dai_links) +
 			 ARRAY_SIZE(msm_tacna_be_dai_links) +
 			 ARRAY_SIZE(msm_2prince_be_dai_links) +
+			 ARRAY_SIZE(msm_2ti2558_be_dai_links) +
 			 ARRAY_SIZE(msm_wcn_be_dai_links) +
 			 ARRAY_SIZE(ext_disp_be_dai_link) +
 			 ARRAY_SIZE(msm_auxpcm_be_dai_links) +
@@ -8655,8 +8689,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
                           "cirrus,tacna-dev", &pdata->cirrus_tacna_dev);
 	ret = of_property_read_u32(dev->of_node,
 			   "cirrus,prince-max-devs", &pdata->cirrus_prince_devs);
-	dev_info(dev, "%s: cirrus,tacna-dev %d, cirrus,prince-max-devs %d\n",
-			__func__, pdata->cirrus_tacna_dev, pdata->cirrus_prince_devs);
+	ret = of_property_read_u32(dev->of_node,
+			   "ti,2558-max-devs", &pdata->ti_2558_devs);
+
+	dev_info(dev, "%s: cirrus,tacna-dev %d, cirrus,prince-max-devs %d, ti,2558-max-devs %d \n",
+			__func__, pdata->cirrus_tacna_dev, pdata->cirrus_prince_devs,pdata->ti_2558_devs);
 
 	if (!strcmp(match->data, "moto-codec")) {
 		card = &snd_soc_card_sm6150_moto;
@@ -8698,6 +8735,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev,
 					msm_2prince_be_dai_links,
 					sizeof(msm_2prince_be_dai_links));
 			total_links += ARRAY_SIZE(msm_2prince_be_dai_links);
+		} else if (pdata->ti_2558_devs == 2) {
+			memcpy(msm_sm6150_moto_dai_links + total_links,
+					msm_2ti2558_be_dai_links,
+					sizeof(msm_2ti2558_be_dai_links));
+			total_links += ARRAY_SIZE(msm_2ti2558_be_dai_links);
 		}
 
 		memcpy(msm_sm6150_moto_dai_links + total_links,
