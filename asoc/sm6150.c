@@ -8240,8 +8240,10 @@ static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
 };
 
 static struct snd_soc_dapm_route tacna_audio_paths[] = {
-	{"PRI_MI2S_RX", NULL, "MCLK"},
-	{"PRI_MI2S_TX", NULL, "MCLK"},
+	{"ASP1 Playback", NULL, "MCLK"},
+	{"ASP1 Capture", NULL, "MCLK"},
+	{"ASP2 Playback", NULL, "MCLK"},
+	{"ASP2 Capture", NULL, "MCLK"},
 };
 
 static const struct snd_soc_dapm_widget msm_tacna_dapm_widgets[] = {
