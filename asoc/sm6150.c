@@ -6138,26 +6138,30 @@ static struct snd_soc_ops cs35l41_be_ops = {
 
 static int cs35l41_mi2s_snd_init(struct snd_soc_pcm_runtime *rtd)
 {
-		struct snd_soc_card *card = rtd->card;
-		struct snd_soc_codec *spk_cdc = rtd->codec_dais[0]->codec;
-		struct snd_soc_dapm_context *spk_dapm = snd_soc_codec_get_dapm(spk_cdc);
-		struct snd_soc_codec *rcv_cdc = rtd->codec_dais[1]->codec;
-		struct snd_soc_dapm_context *rcv_dapm = snd_soc_codec_get_dapm(rcv_cdc);
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_codec *rcv_cdc = rtd->codec_dais[0]->codec;
+	struct snd_soc_dapm_context *rcv_dapm = snd_soc_codec_get_dapm(rcv_cdc);
+	struct snd_soc_codec *spk_cdc = rtd->codec_dais[1]->codec;
+	struct snd_soc_dapm_context *spk_dapm = snd_soc_codec_get_dapm(spk_cdc);
 
-		dev_info(card->dev, "%s: set cs35l41_mclk_rsc_ref to 0 \n", __func__);
-		atomic_set(&cs35l41_mclk_rsc_ref, 0);
+	dev_info(card->dev, "%s: set cs35l41_mclk_rsc_ref to 0 \n", __func__);
+	atomic_set(&cs35l41_mclk_rsc_ref, 0);
 
-		dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(spk_cdc->dev));
-		snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Playback");
-		snd_soc_dapm_ignore_suspend(spk_dapm, "SPK SPK");
-		snd_soc_dapm_sync(spk_dapm);
+	dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(spk_cdc->dev));
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Playback");
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK SPK");
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK VMON ADC");
+	snd_soc_dapm_ignore_suspend(spk_dapm, "SPK AMP Capture");
+	snd_soc_dapm_sync(spk_dapm);
 
-		dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(rcv_cdc->dev));
-		snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Playback");
-		snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV SPK");
-		snd_soc_dapm_sync(rcv_dapm);
+	dev_info(card->dev, "%s: found codec[%s]\n", __func__, dev_name(rcv_cdc->dev));
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Playback");
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV SPK");
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV VMON ADC");
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "RCV AMP Capture");
+	snd_soc_dapm_sync(rcv_dapm);
 
-		return 0;
+	return 0;
 }
 
 /* Digital audio interface glue - connects codec <---> CPU */
