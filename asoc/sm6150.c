@@ -523,6 +523,7 @@ static char const *cdc_dma_sample_rate_text[] = {"KHZ_8", "KHZ_11P025",
 						 "KHZ_88P2", "KHZ_96",
 						 "KHZ_176P4", "KHZ_192",
 						 "KHZ_352P8", "KHZ_384"};
+static char const *hac_switch_text[] = {"Disable","Enable"};
 
 
 static SOC_ENUM_SINGLE_EXT_DECL(slim_0_rx_chs, slim_rx_ch_text);
@@ -647,6 +648,7 @@ static SOC_ENUM_SINGLE_EXT_DECL(tx_cdc_dma_tx_3_sample_rate,
 				cdc_dma_sample_rate_text);
 static SOC_ENUM_SINGLE_EXT_DECL(tx_cdc_dma_tx_4_sample_rate,
 				cdc_dma_sample_rate_text);
+static SOC_ENUM_SINGLE_EXT_DECL(hac_func, hac_switch_text);
 
 static int msm_hifi_control;
 static bool codec_reg_done;
@@ -657,6 +659,9 @@ static struct msm_asoc_wcd93xx_codec msm_codec_fn;
 
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
+
+static int hac_ext_pa_gpio;
+static int hac_status;
 
 static void *def_wcd_mbhc_cal(void);
 static int msm_tacna_init(struct snd_soc_pcm_runtime *rtd);
@@ -922,6 +927,71 @@ static int slim_get_bit_format(int val)
 		break;
 	}
 	return bit_fmt;
+}
+
+static int is_ext_hac_gpio_support(struct platform_device *pdev,
+			struct msm_asoc_mach_data *pdata)
+{
+	const char *hac_ext_pa = "qcom,msm-hac-ext-pa";
+
+	hac_ext_pa_gpio = of_get_named_gpio(pdev->dev.of_node,
+				hac_ext_pa, 0);
+
+	if (hac_ext_pa_gpio < 0) {
+		dev_err(&pdev->dev,
+			"%s: missing %s in dt node\n", __func__, hac_ext_pa);
+	} else {
+		if (!gpio_is_valid(hac_ext_pa_gpio)) {
+			pr_err("%s: Invalid external hac gpio: %d", __func__, hac_ext_pa_gpio);
+			return -EINVAL;
+		}
+	}
+	pr_err("%s: external hac gpio: %d",__func__, hac_ext_pa_gpio);
+
+	return 0;
+}
+
+static int hac_switch_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = hac_status;
+	pr_debug("%s:  hac status %ld\n", __func__, ucontrol->value.integer.value[0]);
+	return 0;
+}
+
+static int hac_switch_put(struct snd_kcontrol *kcontrol,
+				    struct snd_ctl_elem_value *ucontrol)
+{
+	int pa_mode = 3;
+
+	if (ucontrol->value.integer.value[0]) {
+		hac_status = 1;
+		while(pa_mode > 0){
+			if (gpio_is_valid(hac_ext_pa_gpio)) {
+				pr_err("%s: hac gpio exist\n", __func__);
+				gpio_direction_output(hac_ext_pa_gpio, 0);
+				udelay(3);
+				gpio_direction_output(hac_ext_pa_gpio, 1);
+				udelay(3);
+				pa_mode--;
+			} else {
+				pr_err("%s: hac gpio not exist\n", __func__);
+				return 0;
+			}
+		}
+		pr_err("%s: hac enable\n", __func__);
+
+	}else{
+		hac_status = 0;
+		if (gpio_is_valid(hac_ext_pa_gpio)) {
+			gpio_direction_output(hac_ext_pa_gpio, 0);
+			pr_err("%s: hac disable\n", __func__);
+		} else {
+			pr_err("%s: hac gpio not exist\n", __func__);
+			return 0;
+		}
+	}
+	return 0;
 }
 
 static int slim_get_port_idx(struct snd_kcontrol *kcontrol)
@@ -3888,6 +3958,8 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 			msm_bt_sample_rate_tx_put),
 	SOC_ENUM_EXT("VI_FEED_TX Channels", vi_feed_tx_chs,
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
+	SOC_ENUM_EXT("Voice HAC Switch", hac_func,
+			hac_switch_get, hac_switch_put),
 };
 
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
@@ -9823,6 +9895,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		goto err;
 	}
 	dev_info(&pdev->dev, "Sound card %s registered\n", card->name);
+
+	ret = is_ext_hac_gpio_support(pdev, pdata);
+	if (ret < 0)
+		pr_err("%s:  doesn't support external hac pa\n",__func__);
 
 	pdata->hph_en1_gpio = of_get_named_gpio(pdev->dev.of_node,
 						"qcom,hph-en1-gpio", 0);
