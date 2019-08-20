@@ -164,6 +164,10 @@ CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 		-Werror\
 		-D__linux__
 
+ifneq (,$(filter sofiar%, $(TARGET_PRODUCT)))
+CDEFINES += -DCONFIG_TAS25XX_ALGO
+endif
+
 KBUILD_CPPFLAGS += $(CDEFINES)
 
 # Currently, for versions of gcc which support it, the kernel Makefile
