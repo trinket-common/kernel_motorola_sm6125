@@ -47,6 +47,8 @@
 #define TAS_SA_GET_STATUS      3821
 #define TAS_SA_SET_SPKID       3822
 #define TAS_SA_SET_TCAL        3823
+#define TAS_SA_SET_GAIN        202
+#define TAS_SA_SWAP            413
 
 #define CALIB_START             1
 #define CALIB_STOP              2
