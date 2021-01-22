@@ -32,7 +32,7 @@
 #include <soc/qcom/socinfo.h>
 #include <dsp/q6afe-v2.h>
 #include <dsp/q6core.h>
-#include <sound/soc/codecs/tacna.h>
+#include <codecs/tacna.h>
 #include "device_event.h"
 #include "msm-pcm-routing-v2.h"
 #include "codecs/msm-cdc-pinctrl.h"
