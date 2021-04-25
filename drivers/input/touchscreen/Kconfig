@@ -1254,8 +1254,6 @@ config TOUCHSCREEN_ST
 
 	  If unsure, say N.
 
-source "drivers/input/touchscreen/st/Kconfig"
-
 config TOUCHSCREEN_HIMAX_CHIPSET
 	bool "Himax touchpanel CHIPSET"
 	depends on SPI_MASTER
@@ -1266,8 +1264,6 @@ config TOUCHSCREEN_HIMAX_CHIPSET
 
 	  If unsure, say N.
 
-source "drivers/input/touchscreen/himax_0flash_mmi/Kconfig"
-
 config TOUCHSCREEN_SYNAPTICS_DSX
         bool "Synaptics DSX Touchscreen Driver"
         depends on I2C
@@ -1275,8 +1271,6 @@ config TOUCHSCREEN_SYNAPTICS_DSX
           Say Y here if you have a Synaptics Touchscreen.
 
           If unsure, say N.
-
-source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 
 config TOUCHSCREEN_SYNAPTICS_TCM
 	bool "Synaptics TCM Touchscreen Driver"
@@ -1286,6 +1280,10 @@ config TOUCHSCREEN_SYNAPTICS_TCM
 
 	  If unsure, say N.
 
+source "drivers/input/touchscreen/focaltech_0flash_mmi/Kconfig"
+source "drivers/input/touchscreen/himax_0flash_mmi/Kconfig"
+source "drivers/input/touchscreen/st/Kconfig"
+source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
 
 endif
