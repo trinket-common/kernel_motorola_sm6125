@@ -75,6 +75,11 @@ obj-$(CONFIG_MFD_WM8350_I2C)	+= wm8350-i2c.o
 wm8994-objs			:= wm8994-core.o wm8994-irq.o wm8994-regmap.o
 obj-$(CONFIG_MFD_WM8994)	+= wm8994.o
 
+cirrus_tacna-core-y	:= tacna-core.o
+cirrus_tacna-core-$(CONFIG_MFD_CS48L32)	+= cs48l32-tables.o
+cirrus_tacna-core-$(CONFIG_MFD_TACNA_SPI)	+= tacna-spi.o
+obj-$(CONFIG_MFD_TACNA) += cirrus_tacna-core.o
+
 obj-$(CONFIG_TPS6105X)		+= tps6105x.o
 obj-$(CONFIG_TPS65010)		+= tps65010.o
 obj-$(CONFIG_TPS6507X)		+= tps6507x.o

@@ -1,0 +1,5 @@
+# This is all selected by the Tacna MFD driver Kconfig options
+config PINCTRL_TACNA
+	tristate
+	select PINMUX
+	select GENERIC_PINCONF

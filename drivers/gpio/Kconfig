@@ -986,6 +986,12 @@ config GPIO_LP87565
 	  This driver can also be built as a module. If so, the module will be
 	  called gpio-lp87565.
 
+config GPIO_TACNA
+	tristate "Cirrus Logic Tacna class codecs"
+	depends on PINCTRL_TACNA
+	help
+	  Support for GPIOs on Cirrus Logic Tacna class codecs.
+
 config GPIO_MAX77620
 	tristate "GPIO support for PMIC MAX77620 and MAX20024"
 	depends on MFD_MAX77620

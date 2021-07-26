@@ -81,8 +81,9 @@ COMMON_DIR :=	include
 COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 
 ############ TACNA ############
-TACNA_INC := -I$(TOP)/vendor/cirrus/audio/dlkm \
-	-I$(TOP)/vendor/cirrus/audio/dlkm/include
+TACNA_INC := -Idrivers \
+	-Iinclude \
+	-Isound
 
 ############ MOT ############
 MOT_INC := -Iinclude
