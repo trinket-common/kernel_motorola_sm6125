@@ -242,7 +242,7 @@ mbhc_dlkm-y := $(MBHC_OBJS)
 obj-$(CONFIG_SND_SOC_MSM_HDMI_CODEC_RX) += hdmi_dlkm.o
 hdmi_dlkm-y := $(HDMICODEC_OBJS)
 
-obj-m += cirrus_playback.o
+obj-$(CONFIG_CIRRUS_PLAYBACK) += cirrus_playback.o
 cirrus_playback-objs = msm-cirrus-playback.o
 
 # inject some build related information
