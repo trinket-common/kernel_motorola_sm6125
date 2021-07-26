@@ -3,15 +3,15 @@ ets_fps_mmi-$(CONFIG_INPUT_EGISTEC_FPS_NAVI) += ets_navi_input.o
 
 obj-$(CONFIG_FINGERPRINT_EGISTEC_FPS_MMI) += ets_fps_mmi.o
 
-ifneq ($(filter doha%, $(TARGET_PRODUCT)),)
+ifeq ($(CONFIG_DOHA_DTB), y)
 EXTRA_CFLAGS += -DCONFIG_INPUT_EGISTEC_FPS_POSE=0
 else
 EXTRA_CFLAGS += -DCONFIG_INPUT_EGISTEC_FPS_POSE=270
 endif
 
-ifneq ($(filter sofia%, $(TARGET_PRODUCT)),)
+ifeq ($(CONFIG_SOFIA_DTB), y)
 EXTRA_CFLAGS += -DCONFIG_INPUT_EGISTEC_FPS_POSE=0
 endif
-ifneq ($(filter rav%, $(TARGET_PRODUCT)),)
+ifeq ($(CONFIG_RAV_DTB), y)
 EXTRA_CFLAGS += -DCONFIG_INPUT_EGISTEC_FPS_POSE=0
 endif
