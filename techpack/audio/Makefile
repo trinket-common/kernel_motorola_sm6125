@@ -23,6 +23,10 @@ ifeq ($(CONFIG_ARCH_TRINKET), y)
 include $(srctree)/techpack/audio/config/trinketauto.conf
 export $(shell sed 's/=.*//' $(srctree)/techpack/audio/config/trinketauto.conf)
 endif
+ifeq ($(CONFIG_RAV_DTB), y)
+include $(srctree)/techpack/audio/config/ravauto.conf
+export $(shell sed 's/=.*//' $(srctree)/techpack/audio/config/ravauto.conf)
+endif
 
 # Use USERINCLUDE when you must reference the UAPI directories only.
 USERINCLUDE     += \
@@ -57,6 +61,10 @@ endif
 ifeq ($(CONFIG_ARCH_TRINKET), y)
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/trinketautoconf.h
+endif
+ifeq ($(CONFIG_RAV_DTB), y)
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/config/ravautoconf.h
 endif
 
 obj-y += soc/

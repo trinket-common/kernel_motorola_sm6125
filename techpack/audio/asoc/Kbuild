@@ -83,7 +83,7 @@ COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 ############ TACNA ############
 TACNA_INC := -Idrivers \
 	-Iinclude \
-	-Isound
+	-Isound/soc/codecs
 
 ############ MOT ############
 MOT_INC := -Iinclude
@@ -190,7 +190,10 @@ CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 		-Werror\
 		-D__linux__
 
-ifneq (,$(filter sofiar% rav%, $(TARGET_PRODUCT)))
+ifeq ($(CONFIG_RAV_DTB), y)
+CDEFINES += -DCONFIG_TAS25XX_ALGO
+endif
+ifeq ($(CONFIG_SOFIAR_DTB), y)
 CDEFINES += -DCONFIG_TAS25XX_ALGO
 endif
 
