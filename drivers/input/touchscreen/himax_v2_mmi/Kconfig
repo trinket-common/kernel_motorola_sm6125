@@ -1,0 +1,78 @@
+#
+# Himax v2 touchscreen driver configuration
+#
+config TOUCHSCREEN_HIMAX_V2_MMI_0FLASH
+	bool "Himax v2 touchpanel CHIPSET"
+	depends on SPI_MASTER
+	help
+	  Say Y here if you have a Himax v2 CHIPSET touchscreen.
+	  HIMAX controllers are multi touch controllers which can
+	  report 10 touches at a time.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_HIMAX_V2_SPI
+	tristate "HIMAX v2 chipset SPI touchscreen"
+	depends on TOUCHSCREEN_HIMAX_V2_MMI_0FLASH
+	help
+	  This enables support for HIMAX v2 CHIPSET over SPI based touchscreens.
+
+config TOUCHSCREEN_HIMAX_INCELL
+	tristate "HIMAX chipset in-cell function"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX CHIPSET of in-cell function.
+
+config TOUCHSCREEN_HIMAX_V2_MMI_IC_HX83112
+	tristate "HIMAX v2 chipset HX83112 function"
+	depends on TOUCHSCREEN_HIMAX_INCELL
+	help
+	  This enables support for HIMAX v2 CHIPSET of HX83112.
+
+config TOUCHSCREEN_HIMAX_V2_MMI_IC_HX83102
+	tristate "HIMAX v2 chipset HX83102 function"
+	depends on TOUCHSCREEN_HIMAX_INCELL
+	help
+	  This enables support for HIMAX v2 CHIPSET of HX83102.
+
+config TOUCHSCREEN_HIMAX_V2_MMI_IC_HX83102D
+	tristate "HIMAX v2 chipset HX83102D function"
+	depends on TOUCHSCREEN_HIMAX_INCELL
+	help
+	  This enables support for HIMAX v2 CHIPSET of HX83102D.
+
+config TOUCHSCREEN_HIMAX_DEBUG
+	tristate "HIMAX debug function"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX debug function.
+
+config TOUCHSCREEN_HIMAX_INSPECT
+	tristate "HIMAX inspect function"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX debug function.
+
+config HMX_DB
+	tristate "HIMAX driver test over Dragon Board"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX driver test over Dragon Board.
+
+config TOUCHSCREEN_HIMAX_V2_MMI_ENABLE_PALM
+	tristate "HIMAX inspect function"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX v2 palm function.
+
+config TOUCHSCREEN_HIMAX_V2_MMI_ENABLE_DOUBLE_TAP
+	tristate "HIMAX inspect function"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX v2 double tap function.
+
+config TOUCHSCREEN_HIMAX_V2_MMI_ENABLE_MULTI_BIN
+	tristate "HIMAX inspect function"
+	depends on TOUCHSCREEN_HIMAX_V2_SPI
+	help
+	  This enables support for HIMAX v2 multi bin function.

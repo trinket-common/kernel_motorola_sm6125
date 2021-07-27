@@ -1289,5 +1289,6 @@ config TOUCHSCREEN_SYNAPTICS_TCM
 source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
 source "drivers/input/touchscreen/focaltech_0flash_mmi/Kconfig"
 source "drivers/input/touchscreen/nova_0flash_mmi/Kconfig"
+source "drivers/input/touchscreen/himax_v2_mmi/Kconfig"
 
 endif
